@@ -39,10 +39,10 @@ Linux URL Interceptor gives you control over those links:
 - Always-on tray app, built for low overhead (Python + Qt6).
 - `HTTP`/`HTTPS` scheme interception for full coverage.
 - On/off switch from the tray menu.
-- Exclusion list for apps you do not want to intercept.
+- Trusted-app exclusion list you can fill from your running processes.
+- Optional browser forwarding for excluded apps; auto-detects your previous handler.
 - Optional redirect-chain resolution (HTTP redirects + meta-refresh).
-- Optional browser forwarding after interception; auto-detects your previous handler.
-- Desktop notification on every intercepted URL.
+- Desktop notification on every captured URL.
 - Launch at login (autostart entry).
 - JSONL logging for machine-readable history.
 - Falls back to a GTK AppIndicator tray when no Qt tray is available (GNOME).
@@ -104,11 +104,13 @@ the tray menu (or `linux-url-interceptor --install`).
 
 - `Interception enabled` — master switch. When off, URLs pass straight to the browser.
 - `Copy URL to clipboard` — copy every intercepted URL.
-- `Open intercepted links in browser` — forward after capture (normal browsing behaviour).
-- `Resolve redirect chain` — follow HTTP/meta-refresh redirects and open/log the final URL.
-- `Forward browser` — choose the browser to forward to (`Auto` = the handler that was registered
-  before interception).
-- `Excluded apps...` — process names never to intercept; their links pass straight through.
+- `Open intercepted links in browser` — also forward intercepted (non-excluded) links after
+  capture. Off by default: intercepted links are only copied.
+- `Resolve redirect chain` — follow HTTP/meta-refresh redirects and log the final URL.
+- `Forward browser` — choose the browser excluded apps open with (`Auto` = the handler that was
+  registered before interception).
+- `Excluded apps...` — trusted apps, picked from your running processes or typed by name. Their
+  links open in the browser **and** are copied to the clipboard. Everything else is only copied.
 - `Install as default http/https handler` / `Restore original http/https handler`
 - `Launch at login` — autostart entry.
 - `Interception status...`, `Open logs folder`, `Open config folder`, `Exit`.

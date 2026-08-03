@@ -16,7 +16,7 @@ DESKTOP_ID = "linux-url-interceptor.desktop"
 DEFAULTS = {
     "enabled": True,
     "copy_to_clipboard": True,
-    "open_in_browser": True,
+    "open_in_browser": False,
     "resolve_redirect_chain": False,
     "forward_browser": "auto",
     "excluded_apps": [],

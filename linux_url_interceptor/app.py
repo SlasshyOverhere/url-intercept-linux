@@ -5,17 +5,21 @@ import subprocess
 from PyQt6.QtCore import QObject, QPointF, QThread, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QActionGroup, QColor, QCursor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QDialog,
     QDialogButtonBox,
+    QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QListWidget,
     QMenu,
     QMessageBox,
-    QPlainTextEdit,
+    QPushButton,
     QSystemTrayIcon,
     QVBoxLayout,
 )
 
-from . import browser, config, logger, schemes, service as service_mod
+from . import browser, config, logger, processes, schemes, service as service_mod
 
 
 def make_icon() -> QIcon:
@@ -25,22 +29,14 @@ def make_icon() -> QIcon:
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
     p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor("#1f6f5c"))
+    p.setBrush(QColor("#ffffff"))
     p.drawRoundedRect(2, 2, 60, 60, 14, 14)
 
-    pen = QPen(QColor("#eaf6ef"), 3)
-    p.setPen(pen)
-    p.setBrush(Qt.BrushStyle.NoBrush)
-    p.drawEllipse(15, 15, 34, 34)
-    p.drawLine(15, 25, 49, 25)
-    p.drawLine(15, 39, 49, 39)
-    p.drawEllipse(24, 6, 16, 52)
+    p.setBrush(QColor("#0a0a0a"))
+    p.drawPolygon(QPolygonF([QPointF(14, 17), QPointF(50, 17), QPointF(37, 34), QPointF(27, 34)]))
+    p.drawRoundedRect(28, 33, 8, 4, 2, 2)
 
-    p.setPen(QPen(QColor("#f6d98a"), 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-    p.drawArc(32, 0, 24, 24, 16 * 60, 16 * 250)
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor("#f6d98a"))
-    p.drawPolygon(QPolygonF([QPointF(56, 6), QPointF(47, 16), QPointF(60, 18)]))
+    p.drawRoundedRect(25, 41, 14, 7, 3, 3)
     p.end()
     return QIcon(pm)
 
@@ -169,29 +165,97 @@ class TrayApp:
     # ---- dialogs ------------------------------------------------------
 
     def _excluded_dialog(self):
+        self.cfg = config.load()
         dlg = QDialog()
         dlg.setWindowTitle("Excluded apps")
-        dlg.setMinimumWidth(360)
+        dlg.resize(620, 440)
         lay = QVBoxLayout(dlg)
-        lbl = QLabel(
-            "Apps that should never be intercepted (process names, one per line).\n"
-            "Their links are passed straight to the browser without copying or logging."
+
+        hint = QLabel(
+            "Excluded apps are trusted: their links open in the browser AND are copied to the "
+            "clipboard. Links from every other app are only copied. Pick running apps on the left "
+            "or type a process name below."
         )
-        lbl.setWordWrap(True)
-        lay.addWidget(lbl)
-        edit = QPlainTextEdit()
-        edit.setPlainText("\n".join(self.cfg.get("excluded_apps", [])))
-        lay.addWidget(edit)
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+
+        row = QHBoxLayout()
+
+        run_label = QLabel("Running apps")
+        run_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        running = QListWidget()
+        running.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        running.addItems(processes.list_running_processes())
+        run_col = QVBoxLayout()
+        run_col.addWidget(run_label)
+        run_col.addWidget(running, 1)
+        add_btn = QPushButton("Add selected ->")
+        run_col.addWidget(add_btn)
+
+        exc_label = QLabel("Excluded apps")
+        exc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        excluded_list = QListWidget()
+        excluded_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        excluded_list.addItems(sorted(self.cfg.get("excluded_apps", [])))
+        exc_col = QVBoxLayout()
+        exc_col.addWidget(exc_label)
+        exc_col.addWidget(excluded_list, 1)
+        remove_btn = QPushButton("Remove selected")
+        exc_col.addWidget(remove_btn)
+
+        row.addLayout(run_col, 1)
+        row.addLayout(exc_col, 1)
+        lay.addLayout(row)
+
+        def _existing(name):
+            return excluded_list.findItems(name, Qt.MatchFlag.MatchExactly)
+
+        def add_selected():
+            for item in running.selectedItems():
+                name = item.text().strip().lower()
+                if name and not _existing(name):
+                    excluded_list.addItem(name)
+
+        def remove_selected():
+            for item in excluded_list.selectedItems():
+                excluded_list.takeItem(excluded_list.row(item))
+
+        add_btn.clicked.connect(add_selected)
+        remove_btn.clicked.connect(remove_selected)
+
+        manual_row = QHBoxLayout()
+        manual = QLineEdit()
+        manual.setPlaceholderText("Type a process name to trust (e.g. telegram-desktop)")
+        manual_add = QPushButton("Add")
+        manual_row.addWidget(manual, 1)
+        manual_row.addWidget(manual_add)
+        lay.addLayout(manual_row)
+
+        def add_manual():
+            name = manual.text().strip().lower()
+            if name and not _existing(name):
+                excluded_list.addItem(name)
+            manual.clear()
+
+        manual_add.clicked.connect(add_manual)
+        manual.returnPressed.connect(add_manual)
+
         btns = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         lay.addWidget(btns)
 
         def on_ok():
-            names = [ln.strip().lower() for ln in edit.toPlainText().splitlines() if ln.strip()]
-            self.cfg["excluded_apps"] = sorted(set(names))
+            names = sorted(
+                {
+                    excluded_list.item(i).text().strip().lower()
+                    for i in range(excluded_list.count())
+                    if excluded_list.item(i).text().strip()
+                }
+            )
+            self.cfg["excluded_apps"] = names
             config.save(self.cfg)
-            logger.runtime_log(f"excluded apps -> {self.cfg['excluded_apps']}")
+            logger.runtime_log(f"excluded apps -> {names}")
             dlg.accept()
 
         btns.accepted.connect(on_ok)

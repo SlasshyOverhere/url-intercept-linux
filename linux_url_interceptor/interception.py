@@ -3,13 +3,9 @@
 from . import browser, clipboard, config, logger, notify, processes, redirects
 
 
-def should_intercept(cfg, source_name: str) -> bool:
-    if not cfg.get("enabled", True):
-        return False
+def is_excluded(cfg, source_name: str) -> bool:
     name = (source_name or "").lower()
-    if name and name in {a.lower() for a in cfg.get("excluded_apps", [])}:
-        return False
-    return True
+    return bool(name) and name in {a.lower() for a in cfg.get("excluded_apps", [])}
 
 
 def run(url: str, source=None):
@@ -18,10 +14,12 @@ def run(url: str, source=None):
     src_name = (source or {}).get("name", "unknown")
     cfg = config.load()
 
-    if not should_intercept(cfg, src_name):
+    if not cfg.get("enabled", True):
         browser.forward(url, cfg)
-        logger.runtime_log(f"pass-through url={url} app={src_name}")
+        logger.runtime_log(f"disabled, pass-through url={url} app={src_name}")
         return None
+
+    excluded = is_excluded(cfg, src_name)
 
     record = {
         "TimestampUtc": logger.utcnow_iso(),
@@ -40,10 +38,18 @@ def run(url: str, source=None):
     if cfg.get("copy_to_clipboard", True):
         record["CopiedToClipboard"] = clipboard.set_clipboard(final_url)
 
-    if cfg.get("open_in_browser", True):
+    if excluded:
+        # Trusted app: open the link in the browser AND grab it.
+        record["ExcludedApp"] = True
+        record["ForwardedTo"] = browser.forward(final_url, cfg)
+    elif cfg.get("open_in_browser", False):
+        # Intercepted app: clipboard only, unless forwarding is explicitly enabled.
         record["ForwardedTo"] = browser.forward(final_url, cfg)
 
     logger.intercept_log(record)
-    logger.runtime_log(f"intercepted url={url} app={src_name}")
-    notify.send(f"URL intercepted from {src_name or 'unknown'}", final_url or url)
+    logger.runtime_log(f"{'excluded' if excluded else 'intercepted'} url={url} app={src_name}")
+    if excluded:
+        notify.send(f"Opened link from {src_name or 'unknown'}", final_url or url)
+    else:
+        notify.send(f"URL intercepted from {src_name or 'unknown'}", final_url or url)
     return record

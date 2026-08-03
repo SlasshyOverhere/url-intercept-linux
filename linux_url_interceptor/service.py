@@ -71,7 +71,7 @@ class Service:
                     pass
 
     def handle(self, url: str, source: dict) -> None:
-        interception.run(url, source=source, gui_notify=self.notify_cb)
+        interception.run(url, source=source)
 
     def stop(self) -> None:
         try:

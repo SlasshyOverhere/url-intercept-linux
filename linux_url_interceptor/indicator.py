@@ -7,7 +7,7 @@ import gi
 gi.require_version("AyatanaAppIndicator3", "0.1")
 from gi.repository import AyatanaAppIndicator3, Gtk, GLib  # noqa: E402
 
-from . import browser, config, logger, schemes, service as service_mod  # noqa: E402
+from . import browser, config, logger, processes, schemes, service as service_mod  # noqa: E402
 
 
 class IndicatorApp:
@@ -160,26 +160,104 @@ class IndicatorApp:
         self._rebuild()
 
     def _excluded_dialog(self, *args):
+        self.cfg = config.load()
         dlg = Gtk.Dialog(title="Excluded apps", transient_for=None)
-        dlg.set_default_size(360, 260)
+        dlg.set_default_size(640, 440)
         area = dlg.get_content_area()
-        lbl = Gtk.Label(
-            label="Apps that should never be intercepted\n(process names, one per line).\n"
-            "Their links pass straight to the browser."
+
+        hint = Gtk.Label(
+            label="Excluded apps are trusted: their links open in the browser AND are copied to "
+            "the clipboard. Links from every other app are only copied. Pick running apps on the "
+            "left or type a process name below."
         )
-        lbl.set_halign(Gtk.Align.START)
-        area.pack_start(lbl, False, False, 6)
-        tv = Gtk.TextView()
-        tv.get_buffer().set_text("\n".join(self.cfg.get("excluded_apps", [])))
-        area.pack_start(tv, True, True, 6)
+        hint.set_wrap(True)
+        hint.set_xalign(0)
+        area.pack_start(hint, False, False, 6)
+
+        grid = Gtk.Grid()
+        grid.set_column_spacing(8)
+        grid.set_row_spacing(4)
+        grid.set_margin_top(6)
+
+        run_label = Gtk.Label(label="Running apps")
+        run_label.set_halign(Gtk.Align.START)
+        grid.attach(run_label, 0, 0, 1, 1)
+        exc_label = Gtk.Label(label="Excluded apps")
+        exc_label.set_halign(Gtk.Align.START)
+        grid.attach(exc_label, 1, 0, 1, 1)
+
+        run_scroll = Gtk.ScrolledWindow()
+        run_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        run_scroll.set_min_content_height(280)
+        run_list = Gtk.ListBox()
+        run_list.set_selection_mode(Gtk.SelectionMode.MULTIPLE)
+        for name in processes.list_running_processes():
+            run_list.add(Gtk.Label(label=name, xalign=0))
+        run_scroll.add(run_list)
+        grid.attach(run_scroll, 0, 1, 1, 1)
+
+        exc_scroll = Gtk.ScrolledWindow()
+        exc_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        exc_scroll.set_min_content_height(280)
+        exc_list = Gtk.ListBox()
+        exc_list.set_selection_mode(Gtk.SelectionMode.MULTIPLE)
+        for name in sorted(self.cfg.get("excluded_apps", [])):
+            exc_list.add(Gtk.Label(label=name, xalign=0))
+        exc_scroll.add(exc_list)
+        grid.attach(exc_scroll, 1, 1, 1, 1)
+
+        add_btn = Gtk.Button(label="Add selected ->")
+        remove_btn = Gtk.Button(label="Remove selected")
+        grid.attach(add_btn, 0, 2, 1, 1)
+        grid.attach(remove_btn, 1, 2, 1, 1)
+
+        area.pack_start(grid, True, True, 6)
+
+        manual = Gtk.Entry()
+        manual.set_placeholder_text("Type a process name to trust (e.g. telegram-desktop)")
+        manual_add = Gtk.Button(label="Add")
+        manual_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        manual_row.pack_start(manual, True, True, 0)
+        manual_row.pack_start(manual_add, False, False, 0)
+        area.pack_start(manual_row, False, False, 6)
+
+        def existing(name):
+            for child in exc_list.get_children():
+                if child.get_label().lower() == name:
+                    return True
+            return False
+
+        def add_selected(_btn):
+            for child in run_list.get_selected_rows():
+                name = child.get_label().strip().lower()
+                if name and not existing(name):
+                    exc_list.add(Gtk.Label(label=name, xalign=0))
+                    exc_list.show_all()
+
+        def remove_selected(_btn):
+            for child in exc_list.get_selected_rows():
+                exc_list.remove(child)
+
+        def add_manual(_btn=None):
+            name = manual.get_text().strip().lower()
+            if name and not existing(name):
+                exc_list.add(Gtk.Label(label=name, xalign=0))
+                exc_list.show_all()
+            manual.set_text("")
+
+        add_btn.connect("clicked", add_selected)
+        remove_btn.connect("clicked", remove_selected)
+        manual_add.connect("clicked", add_manual)
+        manual.connect("activate", add_manual)
+
         dlg.add_button("Cancel", Gtk.ResponseType.CANCEL)
         dlg.add_button("Save", Gtk.ResponseType.OK)
         dlg.show_all()
         resp = dlg.run()
         if resp == Gtk.ResponseType.OK:
-            buf = tv.get_buffer()
-            text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)
-            names = sorted(set(ln.strip().lower() for ln in text.splitlines() if ln.strip()))
+            names = sorted(
+                {child.get_label().strip().lower() for child in exc_list.get_children() if child.get_label().strip()}
+            )
             self.cfg["excluded_apps"] = names
             config.save(self.cfg)
             logger.runtime_log(f"excluded apps -> {names}")

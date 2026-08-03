@@ -53,3 +53,21 @@ def source_process() -> dict:
             return {"name": name, "pid": pid, "exe": info["argv0"] or name}
         pid = info["ppid"]
     return {"name": "unknown", "pid": 0, "exe": "unknown"}
+
+
+def list_running_processes() -> list:
+    """Unique process names owned by the current user, for the excluded-apps picker."""
+    names = set()
+    uid = os.getuid()
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            if Path(f"/proc/{pid}/stat").stat().st_uid != uid:
+                continue
+        except OSError:
+            continue
+        info = _proc_info(int(pid))
+        if info and info["name"]:
+            names.add(info["name"])
+    return sorted(names)
