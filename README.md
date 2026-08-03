@@ -42,6 +42,7 @@ Linux URL Interceptor gives you control over those links:
 - Exclusion list for apps you do not want to intercept.
 - Optional redirect-chain resolution (HTTP redirects + meta-refresh).
 - Optional browser forwarding after interception; auto-detects your previous handler.
+- Desktop notification on every intercepted URL.
 - Launch at login (autostart entry).
 - JSONL logging for machine-readable history.
 - Falls back to a GTK AppIndicator tray when no Qt tray is available (GNOME).

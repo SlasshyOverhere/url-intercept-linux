@@ -21,7 +21,6 @@ def socket_path():
 class Service:
     def __init__(self, cfg):
         self.cfg = cfg
-        self.notify_cb = None
         self.dispatch = None
         self._sock = None
         self._thread = None

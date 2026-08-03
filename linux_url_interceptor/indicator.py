@@ -29,7 +29,6 @@ class IndicatorApp:
         self.indicator.set_status(AyatanaAppIndicator3.IndicatorStatus.ACTIVE)
 
         self.svc = service_mod.Service(cfg)
-        self.svc.notify_cb = self._notify
         self.svc.dispatch = lambda u, s: GLib.idle_add(self.svc.handle, u, s)
         self.svc.start()
         logger.runtime_log("tray started (AppIndicator)")
@@ -41,20 +40,6 @@ class IndicatorApp:
         finally:
             self.svc.stop()
         return 0
-
-    # ---- notifications -------------------------------------------------
-
-    def _notify(self, app_name, url, final_url):
-        try:
-            body = url if len(url) <= 96 else url[:93] + "..."
-            subprocess.Popen(
-                ["notify-send", f"URL intercepted from {app_name}", body,
-                 "-a", "linux-url-interceptor", "-i", "linux-url-interceptor"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except Exception:
-            pass
 
     # ---- menu ----------------------------------------------------------
 

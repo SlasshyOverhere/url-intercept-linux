@@ -77,7 +77,6 @@ class TrayApp:
         self.svc = service_mod.Service(cfg)
         self.bridge = _UrlBridge()
         self.bridge.url.connect(self.svc.handle)
-        self.svc.notify_cb = self._notify
         self.svc.dispatch = lambda u, s: self.bridge.url.emit(u, s)
         self.svc.start()
 
@@ -86,19 +85,6 @@ class TrayApp:
     def _on_activated(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self.tray.contextMenu().popup(QCursor.pos())
-
-    def _notify(self, app_name, url, final_url):
-        try:
-            body = url if len(url) <= 96 else url[:93] + "..."
-            subprocess.Popen(
-                ["notify-send", f"URL intercepted from {app_name}", body,
-                 "-a", "linux-url-interceptor", "-i", "linux-url-interceptor"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-        except Exception:
-            pass
 
     # ---- menu ---------------------------------------------------------
 

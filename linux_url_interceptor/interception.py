@@ -1,6 +1,6 @@
 """The core interception action, shared by the tray and one-shot handlers."""
 
-from . import browser, clipboard, config, logger, processes, redirects
+from . import browser, clipboard, config, logger, notify, processes, redirects
 
 
 def should_intercept(cfg, source_name: str) -> bool:
@@ -12,7 +12,7 @@ def should_intercept(cfg, source_name: str) -> bool:
     return True
 
 
-def run(url: str, source=None, gui_notify=None):
+def run(url: str, source=None):
     """Process one captured URL. Returns the JSONL record, or None on pass-through."""
     source = source or processes.source_process()
     src_name = (source or {}).get("name", "unknown")
@@ -45,9 +45,5 @@ def run(url: str, source=None, gui_notify=None):
 
     logger.intercept_log(record)
     logger.runtime_log(f"intercepted url={url} app={src_name}")
-    if gui_notify:
-        try:
-            gui_notify(src_name, url, final_url)
-        except Exception:
-            pass
+    notify.send(f"URL intercepted from {src_name or 'unknown'}", final_url or url)
     return record
