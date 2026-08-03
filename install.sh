@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install Linux URL Interceptor into the user's ~/.local prefix.
-# Usage: ./install.sh [--no-register]
+# Usage: ./install.sh [--no-register] [--no-autostart]
 set -euo pipefail
 
 PKG_NAME="linux_url_interceptor"
@@ -15,12 +15,15 @@ ICONS_DIR="$DATA_ROOT/icons/hicolor/scalable/apps"
 AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
 
 REGISTER=1
+AUTOSTART=1
 for arg in "$@"; do
   case "$arg" in
     --no-register) REGISTER=0 ;;
+    --no-autostart) AUTOSTART=0 ;;
     -h|--help)
-      echo "Usage: ./install.sh [--no-register]"
-      echo "  --no-register  install but do NOT take over the default http/https handler"
+      echo "Usage: ./install.sh [--no-register] [--no-autostart]"
+      echo "  --no-register   install but do NOT take over the default http/https handler"
+      echo "  --no-autostart  install but do NOT add a login autostart entry"
       exit 0 ;;
   esac
 done
@@ -62,6 +65,7 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$APPLICATIONS_DIR" 2>/dev/null || true
 fi
 
+if [ "$AUTOSTART" = "1" ]; then
 cat > "$AUTOSTART_DIR/linux-url-interceptor.desktop" <<EOF
 [Desktop Entry]
 Type=Application
@@ -72,6 +76,9 @@ Icon=linux-url-interceptor
 Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
+else
+  rm -f "$AUTOSTART_DIR/linux-url-interceptor.desktop"
+fi
 
 if [ "$REGISTER" = "1" ]; then
   echo "Taking over the default http/https handler (original saved and restored on uninstall)..."
@@ -82,5 +89,9 @@ fi
 echo
 echo "Installed."
 echo "  Start it now:   $BIN_DIR/$BIN_NAME"
-echo "  Or next login (autostart entry was created)."
+if [ "$AUTOSTART" = "1" ]; then
+  echo "  Or next login (autostart entry was created)."
+else
+  echo "  Autostart: off (add it later from the tray menu)."
+fi
 echo "  Uninstall:      ./uninstall.sh"

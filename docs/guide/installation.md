@@ -1,15 +1,17 @@
 # Installation Guide
 
-Install and configure **Linux URL Interceptor** on this machine by following every step below.
-Work from the terminal. If a step needs `sudo`, ask the user before running it.
+Install, update or configure **Linux URL Interceptor** on this machine by following every step
+below. Work from the terminal. If a step needs `sudo`, ask the user before running it. **Ask the
+user the questions in Step 1 before running any install command.**
 
 ## What you are installing
 
 A system-tray app that intercepts `http`/`https` URLs desktop apps launch via
-`xdg-open` / `gio open`. When an app opens a link, the URL is copied to the clipboard, the
-source app and URL are logged to a JSONL file, and the link is forwarded to the browser that was
-registered before interception. It works by claiming the `x-scheme-handler/http` and
-`x-scheme-handler/https` defaults through `xdg-mime`.
+`xdg-open` / `gio open`. When an app opens a link, the URL is copied to the clipboard, the source
+app and URL are logged to a JSONL file, and links from trusted apps are opened in the browser.
+It works by claiming the `x-scheme-handler/http` and `x-scheme-handler/https` defaults through
+`xdg-mime`. The handler that was registered before interception is saved and restored on
+uninstall.
 
 ## Prerequisites
 
@@ -31,38 +33,119 @@ Detect the distro from `/etc/os-release` and use the right package manager:
 - Arch: `sudo pacman -S --noconfirm python-pyqt6 wl-clipboard xdg-utils libnotify git`
 - openSUSE: `sudo zypper install -y python3-pip python3-PyQt6 wl-clipboard xdg-utils libnotify git`
 
-## Step 1 - Get the code
+## Step 0 - Check whether it is already installed
+
+```sh
+ls -la ~/.local/bin/linux-url-interceptor ~/.local/share/linux-url-interceptor 2>/dev/null
+```
+
+- **Already installed** (both the launcher and the app directory exist): do **not** do a fresh
+  install. Read the installed version with `~/.local/bin/linux-url-interceptor --version`, and
+  compare it with the latest release (Step 2 pulls the repo). If the installed version is older,
+  update it: `git pull` in the repo, then re-run `./install.sh` with the flags from Step 1 - this
+  overwrites the app files but **keeps** `~/.config/linux-url-interceptor/config.json`, so the
+  saved original handler and the user's settings survive. If the tray is running
+  (`pgrep -f "python3 -m linux_url_interceptor"`), restart it after the update so the new code
+  loads. If versions already match, tell the user it is up to date and stop unless they ask for a
+  reinstall.
+- **Not installed**: continue with the steps below.
+
+## Step 1 - Ask the user first
+
+Ask these questions and record the answers before running any install command. For each one,
+explain the trade-off in one sentence and note your recommended default.
+
+1. **Start at login?** "Should it start automatically when you log in?"
+   - Yes (recommended) -> use the autostart entry.
+   - No -> pass `--no-autostart` to `./install.sh` (or toggle it later from the tray menu,
+     *Launch at login*).
+2. **Take over http/https now?** "May it become your default handler for http/https links? Your
+   current handler is saved and restored on uninstall."
+   - Yes (recommended) -> install with the default (registered).
+   - No -> pass `--no-register`; it can be registered later from the tray menu (*Install as default
+     http/https handler*).
+3. **How should intercepted links behave?** "Links from non-trusted apps are copied to the
+   clipboard. Should they also open in your browser?"
+   - No, clipboard only (recommended) -> leave `open_in_browser` as `false`.
+   - Yes -> set `"open_in_browser": true` in the config after install.
+4. **Which browser should trusted / forwarded links open with?**
+   - Auto, the previous handler (recommended) -> leave `forward_browser` as `"auto"`.
+   - A specific browser -> set `forward_browser` to its desktop id (list them with
+     `~/.local/bin/linux-url-interceptor --list-browsers`).
+5. **Resolve redirect chains?** "Should it follow redirects so the final URL is logged and copied
+   instead of the first hop?"
+   - No (recommended) -> leave `resolve_redirect_chain` as `false`.
+   - Yes -> set `"resolve_redirect_chain": true` in the config after install.
+6. **Trusted apps?** "Any apps you always want to open links in the browser AND copy to the
+   clipboard? (for example a password manager, Steam, Discord). Name their process names, or say
+   none."
+   - None (recommended) -> leave `excluded_apps` empty.
+
+Only ask question 2 if this is a fresh install; on an update, keep whatever handler choice the
+user already made and only re-register if it was registered before.
+
+## Step 2 - Get the code
 
 ```sh
 git clone https://github.com/SlasshyOverhere/url-intercept-linux.git ~/src/url-intercept-linux
 cd ~/src/url-intercept-linux
 ```
 
-## Step 2 - Install
+If `~/src/url-intercept-linux` already exists (the update case), `git pull` it instead of
+cloning, then `cd` into it.
 
-Run the installer. It copies the app to `~/.local/share/linux-url-interceptor`, creates the
-`~/.local/bin/linux-url-interceptor` launcher, writes the handler `.desktop` file, takes over the
-default `http`/`https` handler (the previous one is saved), and adds a login autostart entry.
+## Step 3 - Install or update
+
+Run the installer with the flags the user chose. It copies the app to
+`~/.local/share/linux-url-interceptor`, creates the `~/.local/bin/linux-url-interceptor` launcher,
+writes the handler `.desktop` file, takes over the default `http`/`https` handler (the previous
+one is saved) unless `--no-register` was chosen, and adds a login autostart entry unless
+`--no-autostart` was chosen.
 
 ```sh
-./install.sh
+./install.sh [--no-register] [--no-autostart]
 ```
 
-Use `./install.sh --no-register` if the default handler should be left alone for now; it can be
-registered later from the tray menu.
+On an update this overwrites the app files while keeping `~/.config/linux-url-interceptor/config.json`.
 
-The previous handler is saved in `~/.config/linux-url-interceptor/config.json` and is restored by
-`./uninstall.sh`.
+If the tray was running before an update, restart it to load the new code:
 
-## Step 3 - Start it
+```sh
+pkill -f "python3 -m linux_url_interceptor" || true
+setsid -f ~/.local/bin/linux-url-interceptor
+```
+
+## Step 4 - Apply the user's behavior choices
+
+Config lives at `~/.config/linux-url-interceptor/config.json` (created during install, when the
+original handler is saved). Apply the answers from Step 1 by editing only the keys the user asked
+to change, leaving everything else untouched:
+
+```sh
+python3 - <<'EOF'
+import json, os
+p = os.path.expanduser("~/.config/linux-url-interceptor/config.json")
+cfg = json.load(open(p))
+# cfg["open_in_browser"]        = True      # question 3 = Yes
+# cfg["forward_browser"]        = "brave-browser.desktop"  # question 4 = specific browser
+# cfg["resolve_redirect_chain"] = True      # question 5 = Yes
+# cfg["excluded_apps"]          = ["steam", "discord"]     # question 6 = listed apps
+json.dump(cfg, open(p, "w"), indent=2)
+EOF
+```
+
+Uncomment only the lines that match the user's answers. If the tray is already running, restart it
+after changing the config so the new values take effect.
+
+## Step 5 - Start it
 
 ```sh
 setsid -f ~/.local/bin/linux-url-interceptor
 ```
 
-## Step 4 - Verify
+## Step 6 - Verify
 
-1. Confirm the handler is registered:
+1. Confirm the handler is registered (skip this check if the user chose `--no-register`):
 
    ```sh
    ~/.local/bin/linux-url-interceptor --status
@@ -92,8 +175,10 @@ setsid -f ~/.local/bin/linux-url-interceptor
 
 ## Report
 
-Summarize what was done: the distro, whether all dependencies installed cleanly, whether the
-handler is registered (`installed: yes`), and the path of the verified intercept log line.
+Summarize what was done: fresh install or update (with the old and new versions if updated), the
+distro, whether all dependencies installed cleanly, each answer the user gave in Step 1 and how it
+was applied, whether the handler is registered (`installed: yes`), whether autostart is on, and the
+path of the verified intercept log line.
 
 ## Troubleshooting
 
