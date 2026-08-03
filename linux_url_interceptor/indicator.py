@@ -32,7 +32,10 @@ class IndicatorApp:
         self.svc.dispatch = lambda u, s: GLib.idle_add(self.svc.handle, u, s)
         self.svc.start()
         logger.runtime_log("tray started (AppIndicator)")
-        self._rebuild()
+        # Build the first menu once the main loop is running: libayatana
+        # appindicator can trip over a GTK widget that is not ready yet if we
+        # set the menu before Gtk.main().
+        GLib.idle_add(self._rebuild)
 
     def run(self) -> int:
         try:

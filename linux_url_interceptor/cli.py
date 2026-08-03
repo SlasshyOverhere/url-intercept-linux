@@ -6,6 +6,7 @@
 * --status/...        -> small diagnostic commands
 """
 
+import os
 import sys
 
 from . import __version__, browser, config, processes, service as service_mod
@@ -48,7 +49,18 @@ def run_tray() -> int:
 
     schemes.ensure_icon()
 
-    # Preferred: Qt tray icon.
+    # On Wayland the Qt tray has no XEmbed owner to dock into, so it runs with
+    # an invisible icon; the StatusNotifier (AppIndicator) backend is the one
+    # that actually shows there.
+    if os.environ.get("WAYLAND_DISPLAY"):
+        try:
+            from .indicator import IndicatorApp
+
+            return IndicatorApp(cfg).run()
+        except Exception:
+            pass
+
+    # Preferred: Qt tray icon (X11 desktops with an XEmbed tray).
     try:
         from PyQt6.QtWidgets import QApplication, QSystemTrayIcon
     except Exception:

@@ -13,32 +13,40 @@ import subprocess
 
 
 def _external_set(text: str) -> bool:
+    candidates = []
     if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-copy"):
-        try:
-            p = subprocess.run(
-                ["wl-copy"],
-                input=text.encode("utf-8"),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=5,
-            )
-            return p.returncode == 0
-        except Exception:
-            pass
+        candidates.append(["wl-copy", []])
     for tool, args in (("xclip", ["-selection", "clipboard"]),
                        ("xsel", ["-b", "-i"])):
         if shutil.which(tool):
+            candidates.append([tool, args])
+    for tool, args in candidates:
+        try:
+            p = subprocess.Popen(
+                [tool, *args],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             try:
-                p = subprocess.run(
-                    [tool, *args],
-                    input=text.encode("utf-8"),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=5,
-                )
-                return p.returncode == 0
-            except Exception:
-                pass
+                p.stdin.write(text.encode("utf-8"))
+            finally:
+                try:
+                    p.stdin.close()
+                except Exception:
+                    pass
+            # These tools fork a daemon that owns the selection; the parent
+            # usually exits once registered. A wedged compositor can make the
+            # parent block, so never wait more than 1s: interception must not
+            # stall on the clipboard.
+            try:
+                p.wait(timeout=1.0)
+                if p.returncode == 0:
+                    return True
+            except subprocess.TimeoutExpired:
+                return True
+        except Exception:
+            continue
     return False
 
 

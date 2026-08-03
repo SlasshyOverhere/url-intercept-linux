@@ -10,7 +10,7 @@ def send(title: str, body: str) -> bool:
     try:
         subprocess.Popen(
             ["notify-send", title, body,
-             "-a", "linux-url-interceptor", "-i", "linux-url-interceptor"],
+             "-a", "Linux URL Interceptor", "-i", "linux-url-interceptor"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
