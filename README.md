@@ -8,50 +8,13 @@ It is a Linux port of [SlasshyOverhere/RedirectURLInterceptor](https://github.co
 (Windows). On Windows that app registers itself as the `HTTP`/`HTTPS` protocol handler; on Linux
 the same idea is done with the `xdg-mime` / desktop-entry `x-scheme-handler` mechanism.
 
-## Set it up with your AI agent
+## Install with your AI agent
 
-Paste the whole block below into your AI coding agent (Claude Code, opencode, Cursor, etc.) on
-the target Linux machine. It detects the distro, installs dependencies, clones and installs the
-app, registers it as the default handler, and verifies the whole loop.
+Paste this prompt into Claude Code, AmpCode, Cursor, or any agent:
 
 ```text
-You are setting up "Linux URL Interceptor" (repo: SlasshyOverhere/url-intercept-linux) on this
-Linux machine. It is a system-tray app that intercepts http/https URLs that desktop apps launch
-via xdg-open / gio open, copies them to the clipboard, logs the source app + URL, and forwards
-them to the previously-registered browser. It uses the xdg-mime x-scheme-handler mechanism.
-
-Do ALL of this, verifying each step before moving on:
-
-1. Check this is Linux and that python3 is available. Detect the distro
-   (/etc/os-release) and package manager (apt/dnf/pacman/zypper).
-
-2. Install dependencies if missing, using the distro's package manager:
-   - python3 + pip (or python3-pip)
-   - PyQt6 (package: python3-pyqt6, or `pip install PyQt6`)
-   - wl-clipboard on Wayland sessions, or xclip/xsel on X11
-   - xdg-utils (provides xdg-open / xdg-mime), notify-send, git
-   Do NOT install anything that requires sudo without asking the user first.
-
-3. Clone https://github.com/SlasshyOverhere/url-intercept-linux into a sensible
-   location (e.g. ~/src/url-intercept-linux) and cd into it.
-
-4. Run ./install.sh. This copies the app to ~/.local/share/linux-url-interceptor,
-   creates ~/.local/bin/linux-url-interceptor, writes the handler .desktop file,
-   takes over the default http/https handler (saving the original), and enables
-   login autostart. The original handler is saved in
-   ~/.config/linux-url-interceptor/config.json and restored by ./uninstall.sh.
-
-5. Start the tray: ~/.local/bin/linux-url-interceptor (detached, e.g. setsid -f).
-   Then confirm it is running: the command `linux-url-interceptor --status` must
-   report "installed: yes".
-
-6. VERIFY the full interception loop without opening a browser tab: temporarily
-   run `linux-url-interceptor --intercept "https://example.com/test"`, then check
-   that ~/.config/linux-url-interceptor/logs/ contains an intercepts-YYYYMMDD.jsonl
-   line with that URL, and that the clipboard contains the URL (wl-paste / xclip -o).
-
-7. Report a short summary: distro, whether install succeeded, whether the handler
-   is registered, and the exact path of one verified intercept log line.
+Install and configure Linux URL Interceptor by following the instructions here:
+https://raw.githubusercontent.com/SlasshyOverhere/url-intercept-linux/main/docs/guide/installation.md
 ```
 
 ## Why this exists
