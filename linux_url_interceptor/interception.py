@@ -29,14 +29,17 @@ def run(url: str, source=None):
         "Url": url,
     }
 
+    # Copy immediately so the user sees the URL without waiting on anything.
+    if cfg.get("copy_to_clipboard", True):
+        record["CopiedToClipboard"] = clipboard.set_clipboard(url)
+
     final_url = url
     if cfg.get("resolve_redirect_chain"):
         final_url, trace = redirects.resolve(url)
         record["FinalUrl"] = final_url
         record["RedirectTrace"] = trace
-
-    if cfg.get("copy_to_clipboard", True):
-        record["CopiedToClipboard"] = clipboard.set_clipboard(final_url)
+        if final_url != url and record.get("CopiedToClipboard"):
+            clipboard.set_clipboard(final_url)
 
     if excluded:
         # Trusted app: open the link in the browser AND grab it.

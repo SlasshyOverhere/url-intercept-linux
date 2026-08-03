@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) LinuxURLInterceptor/1.0"
 MAX_HOPS = 10
-TIMEOUT = 8.0
+TIMEOUT = 3.0
 
 _META_REFRESH_RE = re.compile(
     r'<meta[^>]+http-equiv=["\']?\s*refresh\s*["\']?[^>]+content=["\']'

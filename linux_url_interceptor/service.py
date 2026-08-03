@@ -50,18 +50,11 @@ class Service:
                 conn, _ = self._sock.accept()
             except OSError:
                 break
+            data = b""
             try:
                 conn.settimeout(5)
                 data = conn.recv(65536).decode("utf-8", "replace").strip()
                 conn.sendall(b"ok")
-                if data:
-                    try:
-                        msg = json.loads(data)
-                    except Exception:
-                        continue
-                    if msg.get("type") == "url" and msg.get("url"):
-                        if self.dispatch:
-                            self.dispatch(msg["url"], msg.get("source") or {})
             except Exception:
                 pass
             finally:
@@ -69,6 +62,24 @@ class Service:
                     conn.close()
                 except Exception:
                     pass
+            if data:
+                try:
+                    msg = json.loads(data)
+                except Exception:
+                    continue
+                if msg.get("type") == "url" and msg.get("url"):
+                    # Handle on its own thread so a slow redirect resolve never
+                    # blocks the socket loop and queues up the other URLs.
+                    threading.Thread(
+                        target=self._dispatch, args=(msg,), daemon=True, name="url-handoff"
+                    ).start()
+
+    def _dispatch(self, msg) -> None:
+        try:
+            if self.dispatch:
+                self.dispatch(msg["url"], msg.get("source") or {})
+        except Exception:
+            pass
 
     def handle(self, url: str, source: dict) -> None:
         interception.run(url, source=source)
